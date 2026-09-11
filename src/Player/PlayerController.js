@@ -262,6 +262,28 @@ export class PlayerController {
     const isCrouching = this.input.isKeyDown('KeyC');
     const isSprinting = this.input.isKeyDown('ShiftLeft') && isMoving && !isCrouching && this.stamina > 5;
 
+    // Track state properties for ZombiePerception evaluation
+    this.isMoving = isMoving;
+    this.isSprinting = isSprinting;
+    this.isCrouching = isCrouching;
+    this.isAiming = isAiming;
+    this.isAlive = this.health > 0;
+
+    // Emit footstep sound events for zombie perception
+    if (isMoving) {
+      this.footstepTimer = (this.footstepTimer || 0) + delta;
+      const interval = isSprinting ? 0.3 : (isCrouching ? 0.6 : 0.45);
+      if (this.footstepTimer >= interval) {
+        this.footstepTimer = 0;
+        events.emit('SOUND_EMITTED', {
+          position: this.position.clone(),
+          soundType: 'FOOTSTEP',
+          volumeMultiplier: isSprinting ? 1.0 : (isCrouching ? 0.2 : 0.5),
+          sourceId: 'player'
+        });
+      }
+    }
+
     // Determine target speed
     let targetSpeed = this.runSpeed;
     if (isCrouching) {

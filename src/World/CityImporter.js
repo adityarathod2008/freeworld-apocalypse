@@ -1,46 +1,139 @@
 /**
  * Game FreeWorld - CityImporter (v5.0)
- * Geographic data importer connecting GeoJSON parsing with procedural fallback synthesis.
+ * Master orchestrator synthesizing geographic data (GeoJSON, OSM JSON) into production
+ * 3D city graphs, connecting specialized importers (Road, Building, POI, Transit, District),
+ * spatial sector streaming (SectorManager), and procedural fallback synthesis.
  */
 
 import * as THREE from 'three';
 import { GISDataParser } from './GISDataParser.js';
+import { RoadImporter } from './RoadImporter.js';
+import { BuildingImporter } from './BuildingImporter.js';
+import { POIImporter } from './POIImporter.js';
+import { TransitImporter } from './TransitImporter.js';
+import { DistrictImporter } from './DistrictImporter.js';
 
 export class CityImporter {
   constructor(originLat = 37.7749, originLon = -122.4194) {
     this.parser = new GISDataParser({ lat: originLat, lon: originLon });
+    this.transformer = this.parser.transformer;
+
+    this.roadImporter = new RoadImporter(this.transformer);
+    this.buildingImporter = new BuildingImporter(this.transformer);
+    this.poiImporter = new POIImporter(this.transformer);
+    this.transitImporter = new TransitImporter(this.transformer);
+    this.districtImporter = new DistrictImporter(this.transformer);
   }
 
   /**
-   * Primary entry point: parse supplied GeoJSON dataset or trigger procedural fallback
+   * Primary import pipeline: parse input GIS dataset or generate high-fidelity procedural fallback
+   * @param {Object} [gisData=null] - GeoJSON or OSM JSON dataset
+   * @param {Object} [sectorManager=null] - SectorManager instance for spatial streaming partitioning
+   * @returns {Object} Complete imported city dataset
    */
-  importCity(geoJsonData = null) {
+  importCity(gisData = null, sectorManager = null) {
     const startTime = performance.now();
+    let rawGraph = null;
+    let isProceduralFallback = false;
 
-    if (geoJsonData) {
+    if (gisData) {
       try {
-        const graph = this.parser.parseGeoJSON(geoJsonData);
-        if (this.parser.validateGraph(graph) && graph.footprints.length > 0) {
-          console.log(`[CityImporter] GIS GeoJSON parsed successfully in ${(performance.now() - startTime).toFixed(1)}ms. (${graph.footprints.length} building footprints, ${graph.nodes.length} road nodes)`);
-          return {
-            ...graph,
-            isProceduralFallback: false
-          };
+        rawGraph = this.parser.parse(gisData);
+        if (this.parser.validateGraph(rawGraph) && (rawGraph.footprints.length > 0 || rawGraph.edges.length > 0)) {
+          console.log(`[CityImporter] GIS dataset parsed successfully in ${(performance.now() - startTime).toFixed(1)}ms. (${rawGraph.footprints.length} building footprints, ${rawGraph.nodes.length} road nodes)`);
+        } else {
+          console.warn('[CityImporter] GIS graph validation incomplete. Activating procedural fallback...');
+          isProceduralFallback = true;
         }
       } catch (err) {
-        console.warn('[CityImporter] GeoJSON parsing error. Falling back to procedural city graph:', err.message);
+        console.warn('[CityImporter] GIS parsing error. Activating procedural city fallback:', err.message);
+        isProceduralFallback = true;
       }
+    } else {
+      isProceduralFallback = true;
     }
 
-    // Procedural Fallback Synthesis
-    console.log('[CityImporter] Activating Procedural 3D City Graph Synthesis fallback...');
-    const fallbackGraph = this.synthesizeProceduralGraph();
-    console.log(`[CityImporter] Procedural city graph synthesized in ${(performance.now() - startTime).toFixed(1)}ms.`);
-    return fallbackGraph;
+    if (isProceduralFallback) {
+      console.log('[CityImporter] Generating high-density procedural city fallback graph...');
+      rawGraph = this.synthesizeProceduralGraph();
+    }
+
+    // Process through specialized importers
+    const roadNetwork = this.roadImporter.processRoadNetwork(rawGraph.nodes, rawGraph.edges);
+    const buildings = this.buildingImporter.processBuildingFootprints(rawGraph.footprints);
+    const poiData = this.poiImporter.processPOIs(rawGraph.POIs);
+    const transitData = this.transitImporter.processTransitData(rawGraph.transitStations, rawGraph.transitRoutes);
+    const districts = this.districtImporter.processDistricts(rawGraph.districts);
+
+    const importedCity = {
+      rawGraph,
+      roadNetwork,
+      buildings,
+      pois: poiData.poiMap,
+      poiList: poiData.poiList,
+      landmarks: poiData.landmarks,
+      transitStations: transitData.stations,
+      transitRoutes: transitData.routes,
+      districts,
+      isProceduralFallback,
+      elapsedMs: performance.now() - startTime
+    };
+
+    // Partition into SectorManager if available
+    if (sectorManager) {
+      this.partitionIntoSectors(importedCity, sectorManager);
+    }
+
+    return importedCity;
   }
 
   /**
-   * Synthesize a high-density 3D city graph fallback
+   * Partition imported city elements into SectorManager 60m x 60m sectors
+   */
+  partitionIntoSectors(cityData, sectorManager) {
+    let count = 0;
+
+    // Register buildings
+    cityData.buildings.forEach(bldg => {
+      const entity = {
+        id: bldg.id,
+        position: bldg.center,
+        type: 'BUILDING',
+        building: bldg
+      };
+      sectorManager.registerEntity(entity, bldg.id);
+      count++;
+    });
+
+    // Register POIs
+    cityData.poiList.forEach(poi => {
+      const entity = {
+        id: poi.id,
+        position: poi.position,
+        type: 'POI',
+        poi
+      };
+      sectorManager.registerEntity(entity, poi.id);
+      count++;
+    });
+
+    // Register Transit Stations
+    cityData.transitStations.forEach(st => {
+      const entity = {
+        id: st.id,
+        position: st.position,
+        type: 'TRANSIT_STATION',
+        station: st
+      };
+      sectorManager.registerEntity(entity, st.id);
+      count++;
+    });
+
+    console.log(`[CityImporter] Partitioned ${count} GIS entities into SectorManager grid.`);
+  }
+
+  /**
+   * Synthesize a high-density procedural fallback city graph
    */
   synthesizeProceduralGraph(districtSize = 360, blockCount = 4) {
     const half = districtSize / 2;
@@ -59,35 +152,32 @@ export class CityImporter {
         harbor_marina: { id: 'poi_harbor', type: 'harbor', position: new THREE.Vector3(-120, 0.5, 120) }
       },
       districts: [
-        { name: 'Downtown Core', center: new THREE.Vector3(0, 0, 0) },
-        { name: 'Financial District', center: new THREE.Vector3(90, 0, 90) },
-        { name: 'Harbor District', center: new THREE.Vector3(-90, 0, 90) },
-        { name: 'Heights Residential', center: new THREE.Vector3(-90, 0, -90) }
+        { id: 'dist_downtown', name: 'Downtown Core', center: new THREE.Vector3(0, 0, 0), polygon: [new THREE.Vector3(-180,0,-180), new THREE.Vector3(180,0,-180), new THREE.Vector3(180,0,180), new THREE.Vector3(-180,0,180)] },
+        { id: 'dist_financial', name: 'Financial District', center: new THREE.Vector3(90, 0, 90), polygon: [new THREE.Vector3(0,0,0), new THREE.Vector3(180,0,0), new THREE.Vector3(180,0,180), new THREE.Vector3(0,0,180)] }
+      ],
+      transitStations: [
+        { id: 'st_central', name: 'Central Terminal', type: 'subway_station', position: new THREE.Vector3(0, 0, 0) },
+        { id: 'st_harbor', name: 'Harbor Station', type: 'bus_station', position: new THREE.Vector3(-120, 0, 120) }
+      ],
+      transitRoutes: [
+        { id: 'rt_line1', name: 'Metro Line 1', type: 'subway_line', path: [new THREE.Vector3(-120, -5, 120), new THREE.Vector3(0, -5, 0), new THREE.Vector3(120, -5, -120)] }
       ],
       isProceduralFallback: true
     };
 
-    // 1. Generate Grid Nodes & Edges
+    // 1. Grid Nodes & Edges
     const gridMap = new Map();
-    let nodeIdCounter = 0;
-
     for (let x = 0; x <= blockCount; x++) {
       for (let z = 0; z <= blockCount; z++) {
         const posX = -half + x * blockSize;
         const posZ = -half + z * blockSize;
         const nodeId = `node_${x}_${z}`;
-        const node = {
-          id: nodeId,
-          position: new THREE.Vector3(posX, 0, posZ),
-          gridX: x,
-          gridZ: z
-        };
+        const node = { id: nodeId, position: new THREE.Vector3(posX, 0, posZ), gridX: x, gridZ: z };
         graph.nodes.push(node);
         gridMap.set(`${x}_${z}`, node);
       }
     }
 
-    // Connect edges
     for (let x = 0; x <= blockCount; x++) {
       for (let z = 0; z <= blockCount; z++) {
         const curr = gridMap.get(`${x}_${z}`);
@@ -118,7 +208,7 @@ export class CityImporter {
       }
     }
 
-    // 2. Generate Building Footprints per City Block
+    // 2. Building Footprints
     let bldgCounter = 0;
     for (let bx = 0; bx < blockCount; bx++) {
       for (let bz = 0; bz < blockCount; bz++) {
@@ -165,63 +255,5 @@ export class CityImporter {
     }
 
     return graph;
-  }
-
-  /**
-   * Export internal graph into valid GeoJSON FeatureCollection
-   */
-  exportToGeoJSON(graph) {
-    const features = [];
-
-    // Footprints -> Polygon features
-    for (const f of graph.footprints) {
-      const coords = f.polygon.map((p) => {
-        const geo = this.parser.localToGeo(p.x, p.z);
-        return [geo.lon, geo.lat];
-      });
-      if (coords.length > 0) {
-        coords.push(coords[0]); // Close polygon loop
-        features.push({
-          type: 'Feature',
-          properties: {
-            id: f.id,
-            building: f.type,
-            height: f.height,
-            levels: f.levels,
-            ...f.tags
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [coords]
-          }
-        });
-      }
-    }
-
-    // Edges -> LineString features
-    for (const e of graph.edges) {
-      const gFrom = this.parser.localToGeo(e.fromPos.x, e.fromPos.z);
-      const gTo = this.parser.localToGeo(e.toPos.x, e.toPos.z);
-      features.push({
-        type: 'Feature',
-        properties: {
-          id: e.id,
-          highway: e.highway,
-          lanes: e.lanes
-        },
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [gFrom.lon, gFrom.lat],
-            [gTo.lon, gTo.lat]
-          ]
-        }
-      });
-    }
-
-    return {
-      type: 'FeatureCollection',
-      features
-    };
   }
 }

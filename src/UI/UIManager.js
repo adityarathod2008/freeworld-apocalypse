@@ -3,9 +3,14 @@
  * Coordinates on-screen HUD, status meters, weapon status, speedometer, and notifications
  */
 import { events } from '../Core/EventBus.js';
+import { MainMenu } from './MainMenu.js';
+import { StoryDashboard } from './StoryDashboard.js';
 
 export class UIManager {
   constructor() {
+    this.mainMenu = new MainMenu();
+    this.storyDashboard = new StoryDashboard();
+
     this.crosshair = document.getElementById('crosshair');
     this.wantedStars = [
       document.getElementById('star-1'),

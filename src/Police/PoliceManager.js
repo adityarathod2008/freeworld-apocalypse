@@ -59,9 +59,9 @@ export class PoliceManager {
     return validated.position;
   }
 
-  update(delta, playerPos) {
+  update(delta, player) {
     for (const c of this.cruisers) {
-      c.update(delta, playerPos, this.currentWanted);
+      c.update(delta, player, this.currentWanted);
     }
   }
 

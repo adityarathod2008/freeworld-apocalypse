@@ -7,12 +7,32 @@ import * as THREE from 'three';
 import { events } from '../Core/EventBus.js';
 import { collision, COLLISION_LAYERS } from '../Core/CollisionSystem.js';
 import { VehiclePhysics } from './VehiclePhysics.js';
+import { VehicleRegistry } from './VehicleRegistry.js';
 
 export class VehicleBase {
   constructor(scene, config = {}) {
     this.scene = scene;
     this.displayName = config.displayName || 'Vehicle';
     this.type = config.type || 'car'; // 'car' | 'truck' | 'bike'
+
+    // Authoritative Vehicle Tracking & Theft Properties
+    this.vehicleId = config.vehicleId || `veh_${Math.random().toString(36).substring(2, 9)}`;
+    this.plate = config.plate || VehicleRegistry.get().generateLicensePlate();
+    this.fuel = config.fuel !== undefined ? config.fuel : 100; // 0 - 100%
+    this.condition = config.condition !== undefined ? config.condition : 100; // 0 - 100%
+    this.occupants = config.occupants || [];
+
+    this.ownerId = config.ownerId !== undefined ? config.ownerId : null;
+    this.keys = config.keys !== undefined ? config.keys : true;
+    this.alarm = config.alarm !== undefined ? config.alarm : Math.random() < 0.6;
+    this.security = config.security || (this.alarm ? 'basic' : 'none');
+    this.isLocked = config.isLocked !== undefined ? config.isLocked : (this.ownerId && this.ownerId !== 'player');
+    this.reportedStolen = config.reportedStolen !== undefined ? config.reportedStolen : false;
+    this.stolenState = config.stolenState || 'clean';
+
+    this.alarmActive = false;
+    this.alarmTimer = 0;
+    this.alarmPulseTimer = 0;
 
     // Real Physics Subsystem
     this.physics = new VehiclePhysics(config);
@@ -30,8 +50,6 @@ export class VehicleBase {
     // Vehicle Health & Damage
     this.health = config.maxHealth || 1000;
     this.maxHealth = this.health;
-    this.isSmoking = false;
-
     // 3D Visual Mesh Hierarchy
     this.mesh = new THREE.Group();
     this.wheels = [];
@@ -67,6 +85,31 @@ export class VehicleBase {
     this.initTireSmokePool();
 
     this.scene.add(this.mesh);
+
+    // Register with global VehicleRegistry
+    VehicleRegistry.get().registerVehicle(this, this.plate);
+  }
+
+  triggerAlarm(duration = 12.0) {
+    if (!this.alarm) return;
+    this.alarmActive = true;
+    this.alarmTimer = duration;
+    events.emit('VEHICLE_ALARM_TRIGGERED', {
+      vehicle: this,
+      vehicleId: this.vehicleId,
+      plate: this.plate,
+      displayName: this.displayName,
+      position: this.position.clone()
+    });
+    events.emit('HUD_NOTIFICATION', {
+      title: 'VEHICLE ALARM',
+      message: `Car Alarm Triggered on ${this.displayName}!`
+    });
+  }
+
+  stopAlarm() {
+    this.alarmActive = false;
+    this.alarmTimer = 0;
   }
 
   initTireSmokePool() {
@@ -137,6 +180,35 @@ export class VehicleBase {
   }
 
   updatePhysics(delta, input, colliders = []) {
+    this.condition = Math.round((this.health / this.maxHealth) * 100);
+    VehicleRegistry.get().updateLocation(this.vehicleId, this.position);
+    VehicleRegistry.get().updateCondition(this.vehicleId, this.condition, this.fuel);
+
+    // Alarm countdown & light flashing
+    if (this.alarmActive) {
+      this.alarmTimer -= delta;
+      this.alarmPulseTimer += delta * 12;
+      const flash = Math.sin(this.alarmPulseTimer) > 0;
+      for (const hl of this.headlights) {
+        if (hl.intensity !== undefined) hl.intensity = flash ? 5.0 : 0.2;
+      }
+      if (this.alarmTimer <= 0) {
+        this.stopAlarm();
+      }
+    }
+
+    if (this.fuel <= 0 && this.driver) {
+      // Engine stalled due to empty fuel tank
+      this.speed = THREE.MathUtils.lerp(this.speed, 0, delta * 3.0);
+      this.steerAngle = THREE.MathUtils.lerp(this.steerAngle, 0, delta * 4.0);
+      return;
+    }
+
+    if (this.driver && Math.abs(this.speed) > 0.5) {
+      // Fuel consumption rate scales with speed
+      this.fuel = Math.max(0, this.fuel - delta * 0.04 * (Math.abs(this.speed) / 12));
+    }
+
     if (!this.driver) {
       // Natural deceleration when empty
       this.speed = THREE.MathUtils.lerp(this.speed, 0, delta * 2.5);

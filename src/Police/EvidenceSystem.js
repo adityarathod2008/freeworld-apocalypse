@@ -62,6 +62,34 @@ export class EvidenceSystem {
     events.on('CRIME_COMMITTED', ({ type, position }) => {
       this.checkCCTVOverlap(position, type);
     });
+
+    events.on('VEHICLE_ALARM_TRIGGERED', ({ vehicle, displayName, plate, position }) => {
+      this.addEvidence({
+        type: 'VEHICLE_ALARM',
+        weight: 30,
+        position,
+        description: `Vehicle Alarm triggered on ${displayName} [${plate}]`
+      });
+      this.checkCCTVOverlap(position, `Alarm Triggered on ${displayName}`);
+    });
+
+    events.on('ANPR_PLATE_MATCH', ({ plate, cruiserPos, report }) => {
+      this.addEvidence({
+        type: 'ANPR_PLATE_MATCH',
+        weight: 50,
+        position: cruiserPos,
+        description: `ANPR Automated Plate Scan Match: Stolen Plate ${plate}`
+      });
+    });
+
+    events.on('VEHICLE_REPORTED_STOLEN', ({ plate, displayName, location }) => {
+      this.addEvidence({
+        type: 'STOLEN_VEHICLE_REPORT',
+        weight: 25,
+        position: location?.position ? new THREE.Vector3(location.position.x, location.position.y, location.position.z) : new THREE.Vector3(),
+        description: `Stolen Vehicle Report filed for ${displayName} [${plate}]`
+      });
+    });
   }
 
   checkCCTVOverlap(pos, crimeType) {

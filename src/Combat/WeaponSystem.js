@@ -178,6 +178,13 @@ export class WeaponSystem {
 
     if (w.type !== 'melee') {
       w.currentClip--;
+
+      events.emit('SOUND_EMITTED', {
+        position: playerPos ? playerPos.clone() : new THREE.Vector3(),
+        soundType: 'GUNSHOT',
+        volumeMultiplier: 1.0
+      });
+    }
       this.emitStats();
 
       // Muzzle Flash

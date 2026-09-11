@@ -28,6 +28,9 @@ import { NPCManager } from './src/NPC/NPCManager.js';
 import { TrafficManager } from './src/Traffic/TrafficManager.js';
 import { TrafficSignals } from './src/Traffic/TrafficSignals.js';
 
+import { PoliceDatabase, policeDatabase } from './src/Police/PoliceDatabase.js';
+import { ZombieManager } from './src/Zombies/ZombieManager.js';
+import { HordeManager } from './src/Horde/HordeManager.js';
 import { WantedSystem } from './src/Police/WantedSystem.js';
 import { PoliceManager } from './src/Police/PoliceManager.js';
 import { WitnessSystem } from './src/Police/WitnessSystem.js';
@@ -35,6 +38,10 @@ import { PoliceDispatch } from './src/Police/PoliceDispatch.js';
 import { EvidenceSystem, evidenceSystem } from './src/Police/EvidenceSystem.js';
 import { ArrestSystem } from './src/Police/ArrestSystem.js';
 import { EmergencyServices } from './src/WorldSystems/EmergencyServices.js';
+import { OutbreakDirector } from './src/WorldSystems/OutbreakDirector.js';
+import { CityCollapseEngine } from './src/WorldSystems/CityCollapseEngine.js';
+import { SystemicChainEngine } from './src/WorldSystems/SystemicChainEngine.js';
+import { StoryEngine } from './src/Story/StoryEngine.js';
 
 import { WeaponSystem } from './src/Combat/WeaponSystem.js';
 import { ProjectileManager } from './src/Combat/ProjectileManager.js';
@@ -49,6 +56,8 @@ import { StreetRaceActivity, CourierBountyActivity } from './src/Missions/SideAc
 import { EconomyManager } from './src/WorldSystems/EconomyManager.js';
 import { ShopSystem } from './src/Economy/ShopSystem.js';
 import { SaveManager } from './src/SaveSystem/SaveManager.js';
+import { OpeningBootSequence } from './src/Story/OpeningBootSequence.js';
+import { BucketListEngine } from './src/BucketList/BucketListEngine.js';
 
 import { TimeManager } from './src/Weather/TimeManager.js';
 import { WeatherManager } from './src/Weather/WeatherManager.js';
@@ -56,6 +65,7 @@ import { EnvironmentEffects } from './src/Weather/EnvironmentEffects.js';
 
 import { SoundEngine } from './src/Audio/SoundEngine.js';
 import { RadioSystem } from './src/Audio/RadioSystem.js';
+import { InvestigationManager } from './src/Investigation/InvestigationManager.js';
 
 import { UIManager } from './src/UI/UIManager.js';
 import { HUD } from './src/UI/HUD.js';
@@ -66,6 +76,7 @@ import { Smartphone } from './src/UI/Smartphone.js';
 
 import { DebugConsole } from './src/Tools/DebugConsole.js';
 import { PerformanceStats } from './src/Tools/PerformanceStats.js';
+import { DebugOverlayManager } from './src/Tools/DebugOverlayManager.js';
 
 class GameApp {
   constructor() {
@@ -118,13 +129,18 @@ class GameApp {
       this.sectorManager.registerEntity(v);
     }
 
-    // 6. Pedestrians & Traffic
+    // 6. Pedestrians, Zombies & Traffic
     this.npcManager = new NPCManager(this.engine.scene, this.navGraph);
     this.npcManager.spawnCivilians(32);
     for (const p of this.npcManager.getPedestrians()) {
       this.entityManager.registerPedestrian(p);
       this.sectorManager.registerEntity(p);
     }
+
+    this.zombieManager = new ZombieManager(this.engine.scene);
+    this.hordeManager = new HordeManager(this.zombieManager);
+    this.zombieManager.spawnZombie({ variant: 'WALKER', position: { x: 15, y: 0.5, z: 15 } });
+    this.zombieManager.spawnZombie({ variant: 'RUNNER', position: { x: -25, y: 0.5, z: -20 } });
 
     this.trafficManager = new TrafficManager(this.engine.scene, this.navGraph);
     this.trafficManager.spawnTraffic(14);
@@ -153,6 +169,7 @@ class GameApp {
     // 9. Economy, Shops, Real Estate & Persistence
     this.economy = new EconomyManager(15400, 45000);
     this.shops = new ShopSystem(this.economy);
+    this.bucketListEngine = BucketListEngine.get();
     this.saveManager = new SaveManager(this.economy);
     this.saveManager.load();
 
@@ -164,7 +181,13 @@ class GameApp {
     this.soundEngine = new SoundEngine();
     this.radioSystem = new RadioSystem(this.soundEngine);
 
-    // 11. Missions & Systemic Events
+    // 11. Missions, Story Engine, Outbreak Director & Systemic Events
+    this.storyEngine = new StoryEngine(this.engine.camera);
+    this.outbreakDirector = new OutbreakDirector();
+    this.cityCollapseEngine = new CityCollapseEngine();
+    this.systemicChainEngine = new SystemicChainEngine();
+
+    this.investigationManager = new InvestigationManager(this.engine.scene, this.gameState);
     this.missionManager = new MissionManager(this.engine.scene);
     this.mainMission = new MainMission1(this.cityData.landmarks);
     this.missionManager.startMission(this.mainMission);
@@ -179,6 +202,8 @@ class GameApp {
     this.smartphone = new Smartphone(this.economy, () => this.player.position);
     this.debugConsole = new DebugConsole(this.cityData.landmarks);
     this.performanceStats = new PerformanceStats();
+    this.debugOverlayManager = new DebugOverlayManager();
+    this.bootSequence = new OpeningBootSequence();
 
     this.bindMissionEvents();
 
@@ -287,18 +312,26 @@ class GameApp {
     // 4. Vehicles
     this.vehicleManager.update(delta, this.input, this.allColliders);
 
-    // 5. Traffic, Traffic Signals & Civilians
+    // 5. Traffic, Traffic Signals, Civilians & Zombies
     this.trafficSignals.update(delta);
     this.trafficManager.update(delta, this.player.position);
     this.npcManager.update(delta, this.player.position);
 
+    const livingTargets = [this.player, ...this.npcManager.getPedestrians()];
+    const isDarkness = this.timeManager ? (this.timeManager.isNight ? 0.85 : 0.0) : 0.0;
+    this.zombieManager.update(delta, livingTargets, isDarkness, this.allColliders);
+    this.hordeManager.update(delta);
+
     // 6. Police, Evidence, Arrest & Emergency Ecosystem
     const activeCops = this.policeManager.getActivePolice();
     this.wantedSystem.update(delta, this.player.position, activeCops);
-    this.policeManager.update(delta, this.player.position);
+    this.policeManager.update(delta, this.player);
     this.arrestSystem.update(delta, this.player, activeCops, this.wantedSystem.wantedLevel);
     this.evidenceSystem.update(delta);
     this.emergencyServices.update(delta);
+    this.outbreakDirector.update(delta);
+    this.cityCollapseEngine.update(delta, this.outbreakDirector.outbreakLevel);
+    this.storyEngine.update(delta);
 
     // 7. Combat & Hit Reactions
     const combatTargets = {
@@ -310,7 +343,8 @@ class GameApp {
     this.hitReaction.update(delta);
     this.weaponWheel.update();
 
-    // 8. Missions & Random World Encounters
+    // 8. Missions, Investigation & Random World Encounters
+    this.investigationManager.update(this.player.position, delta);
     this.missionManager.update(delta, this.player.position);
     this.randomEvents.update(delta, this.player.position);
 
@@ -329,6 +363,13 @@ class GameApp {
     this.timeManager.update(delta, this.player.position, this.propSystem);
     this.weatherManager.update(delta, this.player.position);
     this.environmentEffects.update(delta, this.player.position);
+
+    // Sync rain wetness sheen to character skin & clothing materials
+    const rainWetness = (this.weatherManager.currentWeather === 'RAIN' || this.weatherManager.currentWeather === 'STORMY') ? 85 : 0;
+    if (this.player && this.player.model && this.player.model.setEnvironmentalConditions) {
+      this.player.model.setEnvironmentalConditions(0, rainWetness);
+    }
+
     this.districtManager.update(this.player.position);
     this.soundEngine.update(delta);
     this.radioSystem.update(delta);

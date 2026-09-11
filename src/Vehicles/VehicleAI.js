@@ -137,12 +137,32 @@ export class VehicleAI {
       }
     }
 
-    // 3. Obstacle Avoidance & Traffic Yielding
+    // 3. Obstacle Avoidance, Traffic Light Stop Lines & Emergency Vehicle Yielding
     this.isYielding = false;
+    this.isYieldingToEmergency = false;
     const forwardRayLen = Math.max(9.0, this.vehicle.speed * 0.7);
 
+    // Yield to approaching Emergency Vehicles with Sirens
+    if (otherVehicles) {
+      for (const other of otherVehicles) {
+        if (other === this || other === this.vehicle) continue;
+        const otherIsEmergency = other.isEmergencyVehicle || other.vehicle?.displayName?.toLowerCase().includes('police') || other.displayName?.toLowerCase().includes('police');
+        if (otherIsEmergency) {
+          const otherPos = other.position || (other.mesh ? other.mesh.position : null);
+          if (otherPos && pos.distanceTo(otherPos) < 28.0) {
+            this.isYieldingToEmergency = true;
+            this.isYielding = true;
+            targetSpeedGoal = 0;
+            // Pull over slightly to the right
+            this.vehicle.steerAngle = 0.25;
+            break;
+          }
+        }
+      }
+    }
+
     // Yield to player car if directly in front
-    if (playerPos) {
+    if (!this.isYieldingToEmergency && playerPos) {
       const toPlayer = new THREE.Vector3().subVectors(playerPos, pos);
       toPlayer.y = 0;
       const playerDist = toPlayer.length();
@@ -155,7 +175,7 @@ export class VehicleAI {
       }
     }
 
-    // Yield to cars ahead in traffic
+    // Yield to cars ahead in traffic or attempt lane change
     if (!this.isYielding && otherVehicles) {
       for (const other of otherVehicles) {
         if (other === this || other === this.vehicle) continue;
@@ -171,6 +191,14 @@ export class VehicleAI {
           if (forward.dot(toOtherNorm) > 0.7) {
             this.isYielding = true;
             targetSpeedGoal = 0;
+
+            // Attempt Lane Change if slow traffic ahead
+            if (this.targetNode && this.targetNode.connections.length > 1) {
+              const altNode = this.targetNode.connections[1];
+              if (altNode && altNode !== this.targetNode) {
+                this.targetNode = altNode;
+              }
+            }
             break;
           }
         }

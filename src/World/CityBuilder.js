@@ -22,8 +22,8 @@ export class CityBuilder {
     this.cityGraph = null;
   }
 
-  build(geoJsonData = null) {
-    this.cityGraph = this.cityImporter.importCity(geoJsonData);
+  build(geoJsonData = null, sectorManager = null) {
+    this.cityGraph = this.cityImporter.importCity(geoJsonData, sectorManager);
 
     this.createGround();
     this.createRoadGrid();

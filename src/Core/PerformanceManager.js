@@ -29,7 +29,7 @@ export const QUALITY_PRESETS = {
     name: 'HIGH',
     shadows: true,
     shadowMapSize: 2048,
-    pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+    pixelRatio: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.5) : 1,
     maxSimDistance: 180,
     npcCount: 36,
     trafficCount: 18,
@@ -39,7 +39,7 @@ export const QUALITY_PRESETS = {
     name: 'ULTRA',
     shadows: true,
     shadowMapSize: 2048,
-    pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    pixelRatio: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1,
     maxSimDistance: 240,
     npcCount: 48,
     trafficCount: 24,
@@ -52,7 +52,9 @@ export class PerformanceManager {
     this.engine = engine;
     this.currentPreset = 'HIGH';
     this.fpsHistory = [];
-    this.autoAdjustEnabled = true;
+    this.consecutiveSpikes = 0;
+    this.consecutiveNormalFrames = 0;
+    this.throttleLevel = 0; // 0: Normal, 1: Light, 2: Medium, 3: Heavy
 
     this.setupListeners();
   }
@@ -62,22 +64,53 @@ export class PerformanceManager {
       this.applyPreset(presetName);
     });
 
-    events.on('TELEMETRY_UPDATE', ({ fps }) => {
+    events.on('TELEMETRY_UPDATE', ({ fps, drawCalls }) => {
       if (!this.autoAdjustEnabled) return;
-      this.fpsHistory.push(fps);
-      if (this.fpsHistory.length > 20) this.fpsHistory.shift();
-
-      // If consistently under 25 FPS, degrade quality gracefully
-      if (this.fpsHistory.length === 20) {
-        const avg = this.fpsHistory.reduce((a, b) => a + b, 0) / 20;
-        if (avg < 24 && this.currentPreset !== 'LOW') {
-          console.warn('[PerformanceManager] Low FPS detected (' + Math.round(avg) + '), degrading quality to optimize.');
-          const order = ['ULTRA', 'HIGH', 'MEDIUM', 'LOW'];
-          const next = order[order.indexOf(this.currentPreset) + 1];
-          if (next) this.applyPreset(next);
-        }
-      }
+      const frameTimeMs = fps > 0 ? (1000 / fps) : 16.7;
+      this.recordFrameTime(frameTimeMs / 1000);
     });
+  }
+
+  recordFrameTime(deltaSeconds) {
+    const frameTimeMs = deltaSeconds * 1000;
+
+    if (frameTimeMs > 22.0) {
+      this.consecutiveSpikes++;
+      this.consecutiveNormalFrames = 0;
+
+      if (this.consecutiveSpikes >= 3 && this.throttleLevel < 3) {
+        this.throttleLevel++;
+        this.consecutiveSpikes = 0;
+        this.applyDynamicThrottling();
+      }
+    } else if (frameTimeMs < 18.0) {
+      this.consecutiveNormalFrames++;
+      this.consecutiveSpikes = 0;
+
+      if (this.consecutiveNormalFrames >= 10 && this.throttleLevel > 0) {
+        this.throttleLevel--;
+        this.consecutiveNormalFrames = 0;
+        this.applyDynamicThrottling();
+      }
+    } else {
+      this.consecutiveSpikes = 0;
+    }
+  }
+
+  applyDynamicThrottling() {
+    events.emit('DYNAMIC_THROTTLE_CHANGED', {
+      throttleLevel: this.throttleLevel,
+      reduceShadows: this.throttleLevel >= 1,
+      reduceParticles: this.throttleLevel >= 1,
+      demoteAILOD: this.throttleLevel >= 2,
+      reduceAudioVoices: this.throttleLevel >= 3
+    });
+
+    if (this.throttleLevel > 0) {
+      console.warn(`[PerformanceManager] 3-frame >22ms spike detected. Dynamic throttle engaged: Level ${this.throttleLevel}`);
+    } else {
+      console.log('[PerformanceManager] Frame rate stabilized (<18ms). Restoring full visual quality.');
+    }
   }
 
   applyPreset(presetName) {

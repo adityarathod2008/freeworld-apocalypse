@@ -22,10 +22,29 @@ export class InputManager {
 
   setupListeners() {
     window.addEventListener('keydown', (e) => {
-      // Allow Dev console toggle with ~ or F1 regardless of lock
-      if (e.code === 'Backquote' || e.key === '`' || e.code === 'F1') {
+      // Dev console toggle with ~ (Backquote)
+      if (e.code === 'Backquote' || e.key === '`') {
         e.preventDefault();
         events.emit('DEBUG_TOGGLE');
+        return;
+      }
+
+      // F1 - F9 Diagnostic Overlays
+      const fKeyMap = {
+        'F1': 'F1_GAME_STATE',
+        'F2': 'F2_EVENT_BUS',
+        'F3': 'F3_NPC',
+        'F4': 'F4_ZOMBIES',
+        'F5': 'F5_VEHICLES',
+        'F6': 'F6_POLICE',
+        'F7': 'F7_STORY',
+        'F8': 'F8_BUILDINGS',
+        'F9': 'F9_PERFORMANCE'
+      };
+
+      if (fKeyMap[e.code]) {
+        e.preventDefault();
+        events.emit('DEBUG_TOGGLE_OVERLAY', fKeyMap[e.code]);
         return;
       }
 

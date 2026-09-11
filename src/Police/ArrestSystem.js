@@ -18,6 +18,7 @@ export class ArrestSystem {
   }
 
   createBustedUI() {
+    if (typeof document === 'undefined') return;
     let overlay = document.getElementById('busted-screen-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -50,6 +51,15 @@ export class ArrestSystem {
     events.on('PLAYER_ATTACKED_POLICE', () => {
       if (this.state === 'SURRENDER_WINDOW') {
         this.cancelSurrender();
+      }
+    });
+
+    events.on('POLICE_PHYSICAL_ARREST_INITIATED', ({ officer, dist }) => {
+      if (this.state === 'NONE' || this.state === 'SURRENDER_WINDOW') {
+        events.emit('SHOW_SUBTITLE', {
+          speaker: 'POLICE OFFICER',
+          text: '"You are under arrest! Put your hands behind your back!"'
+        });
       }
     });
   }
