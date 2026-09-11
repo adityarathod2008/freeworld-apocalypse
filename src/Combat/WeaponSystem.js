@@ -184,19 +184,21 @@ export class WeaponSystem {
         soundType: 'GUNSHOT',
         volumeMultiplier: 1.0
       });
-    }
+
       this.emitStats();
 
       // Muzzle Flash
-      this.muzzleLight.position.copy(playerPos).add(new THREE.Vector3(0.4, 1.4, 0.6));
-      this.muzzleLight.intensity = 4.0;
-      this.muzzleFlashTimer = 0.05;
+      if (playerPos) {
+        this.muzzleLight.position.copy(playerPos).add(new THREE.Vector3(0.4, 1.4, 0.6));
+        this.muzzleLight.intensity = 4.0;
+        this.muzzleFlashTimer = 0.05;
+      }
     }
 
     // Emit sound & witness events
     events.emit('WEAPON_FIRED', {
       weapon: w,
-      origin: playerPos.clone()
+      origin: playerPos ? playerPos.clone() : new THREE.Vector3()
     });
 
     // Raycast hitscan from camera center
