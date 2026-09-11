@@ -1,0 +1,377 @@
+/* ==========================================================================
+   GAME FREEWORLD - MENUS, MAP & SMARTPHONE STYLES
+   ========================================================================== */
+
+/* ----------------- FULLSCREEN MAP MODAL ----------------- */
+#map-modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(4, 7, 12, 0.94);
+  z-index: 50;
+  display: none;
+  flex-direction: column;
+  backdrop-filter: blur(14px);
+}
+
+#map-header {
+  height: 60px;
+  background: rgba(15, 22, 34, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+}
+
+#map-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--primary-accent);
+}
+
+#map-legend {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-player { background: #00f0ff; }
+.legend-mission { background: #ffb700; }
+.legend-safehouse { background: #55ff77; }
+.legend-shop { background: #ff00ff; }
+.legend-police { background: #ff2222; }
+
+#map-canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+
+#map-canvas-container:active {
+  cursor: grabbing;
+}
+
+#big-map-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+#map-footer-help {
+  height: 40px;
+  background: rgba(10, 15, 22, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  font-size: 12px;
+  color: #888;
+}
+
+/* ----------------- IN-GAME SMARTPHONE OVERLAY ----------------- */
+#smartphone-container {
+  position: absolute;
+  bottom: -600px;
+  right: 40px;
+  width: 300px;
+  height: 540px;
+  background: #0d121c;
+  border: 4px solid #2a3344;
+  border-radius: 36px;
+  z-index: 60;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 240, 255, 0.2);
+  transition: bottom 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+#smartphone-container.active {
+  bottom: 30px;
+}
+
+#phone-notch {
+  width: 90px;
+  height: 18px;
+  background: #2a3344;
+  border-radius: 0 0 12px 12px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#phone-speaker {
+  width: 36px;
+  height: 4px;
+  background: #111;
+  border-radius: 2px;
+}
+
+#phone-status-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 18px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8892b0;
+}
+
+#phone-screen {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #121826, #090d15);
+  overflow-y: auto;
+}
+
+#phone-home-app-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 15px;
+}
+
+.phone-app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.phone-app-icon:hover {
+  transform: scale(1.08);
+}
+
+.app-glyph {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.app-bank { background: linear-gradient(135deg, #10b981, #047857); }
+.app-contacts { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.app-valet { background: linear-gradient(135deg, #f59e0b, #b45309); }
+.app-missions { background: linear-gradient(135deg, #ec4899, #be185d); }
+.app-settings { background: linear-gradient(135deg, #6b7280, #374151); }
+
+.app-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+#phone-app-content {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+}
+
+.phone-back-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary-accent);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  align-self: flex-start;
+  margin-bottom: 12px;
+}
+
+#phone-home-bar {
+  width: 100px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  margin: 8px auto 10px;
+  cursor: pointer;
+}
+
+/* ----------------- WEAPON WHEEL OVERLAY ----------------- */
+#weapon-wheel-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: rgba(10, 15, 22, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.wheel-slot {
+  position: absolute;
+  width: 90px;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wheel-slot.active {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--primary-accent);
+  transform: scale(1.1);
+}
+
+.slot-top { top: 15px; left: 115px; }
+.slot-right { top: 120px; right: 15px; }
+.slot-bottom { bottom: 15px; left: 115px; }
+.slot-left { top: 120px; left: 15px; }
+
+.slot-icon { font-size: 24px; }
+.slot-name { font-size: 10px; font-weight: 700; margin-top: 4px; text-transform: uppercase; }
+
+/* ----------------- SHOP & PROPERTY MODAL ----------------- */
+#shop-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 520px;
+  background: rgba(12, 18, 28, 0.95);
+  border: 2px solid var(--primary-accent);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+  border-radius: 16px;
+  z-index: 55;
+  display: none;
+  flex-direction: column;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.shop-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--primary-accent);
+  text-transform: uppercase;
+}
+
+.shop-close-btn {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.shop-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.shop-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shop-item-buy-btn {
+  background: var(--primary-accent);
+  border: none;
+  color: #04070c;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shop-item-buy-btn:hover {
+  background: #55ff77;
+  transform: translateY(-1px);
+}
+
+/* ----------------- MISSION BANNER / NOTIFICATIONS ----------------- */
+#mission-notification {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.85);
+  background: linear-gradient(90deg, transparent, rgba(15, 22, 34, 0.95), transparent);
+  padding: 16px 80px;
+  text-align: center;
+  z-index: 45;
+  display: none;
+  opacity: 0;
+  transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+#mission-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+#mission-notif-title {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--gold-accent);
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(255, 183, 0, 0.6);
+}
+
+#mission-notif-sub {
+  font-size: 16px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}

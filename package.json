@@ -1,0 +1,29 @@
+{
+  "name": "freeworld-ultimate-realcity-apocalypse",
+  "version": "5.0.0",
+  "description": "FREEWORLD — Ultimate Real-City Apocalypse open-world survival WebGL game",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "npx http-server -p 8085 -c-1"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "keywords": [
+    "threejs",
+    "webgl",
+    "open-world",
+    "gta-style",
+    "zombie-apocalypse",
+    "survival"
+  ],
+  "author": "Antigravity & FreeWorld Team",
+  "license": "MIT"
+}
